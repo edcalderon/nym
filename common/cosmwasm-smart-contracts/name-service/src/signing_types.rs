@@ -26,7 +26,6 @@ pub fn construct_name_register_sign_payload(
     name: NameDetails,
 ) -> SignableNameRegisterMsg {
     let payload = NameRegister { name };
-    let proxy = None;
-    let content = ContractMessageContent::new(sender, proxy, vec![deposit], payload);
+    let content = ContractMessageContent::new(sender, vec![deposit], payload);
     SignableMessage::new(nonce, content)
 }

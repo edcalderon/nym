@@ -29,7 +29,6 @@ pub fn construct_service_provider_announce_sign_payload(
     service: ServiceDetails,
 ) -> SignableServiceProviderAnnounceMsg {
     let payload = ServiceProviderAnnounce { service };
-    let proxy = None;
-    let content = ContractMessageContent::new(sender, proxy, vec![deposit], payload);
+    let content = ContractMessageContent::new(sender, vec![deposit], payload);
     SignableMessage::new(nonce, content)
 }
