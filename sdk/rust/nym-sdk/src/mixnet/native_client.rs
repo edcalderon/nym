@@ -200,7 +200,7 @@ pub struct MixnetClientSender {
 
 impl AsyncRead for MixnetClient {
     fn poll_read(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<std::result::Result<usize, std::io::Error>> {
@@ -212,9 +212,7 @@ impl AsyncRead for MixnetClient {
                 Poll::Ready(Ok(len))
             }
             Poll::Ready(None) => Poll::Ready(Ok(0)),
-            // We've read all currently available messages, but there might be more coming, but we shouldn't block
-            // up to the caller to deal with it.
-            Poll::Pending => Poll::Ready(Ok(0)),
+            Poll::Pending => Poll::Pending,
         }
     }
 }
