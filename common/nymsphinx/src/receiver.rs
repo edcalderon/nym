@@ -43,6 +43,18 @@ impl From<ReconstructedMessage> for Vec<u8> {
     }
 }
 
+impl From<&ReconstructedMessage> for Vec<u8> {
+    fn from(msg: &ReconstructedMessage) -> Vec<u8> {
+        match bincode::serialize(msg) {
+            Ok(serialized) => serialized,
+            Err(err) => {
+                warn!("failed to serialize reconstructed message - {:?}", err);
+                Vec::new()
+            }
+        }
+    }
+}
+
 impl From<ReconstructedMessage> for (Vec<u8>, Option<AnonymousSenderTag>) {
     fn from(msg: ReconstructedMessage) -> Self {
         (msg.message, msg.sender_tag)
