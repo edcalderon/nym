@@ -43,6 +43,14 @@ impl From<&ReconstructedMessage> for Vec<u8> {
     }
 }
 
+impl TryFrom<&[u8]> for ReconstructedMessage {
+    type Error = bincode::Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        bincode::deserialize(value)
+    }
+}
+
 impl From<ReconstructedMessage> for (Vec<u8>, Option<AnonymousSenderTag>) {
     fn from(msg: ReconstructedMessage) -> Self {
         (msg.message, msg.sender_tag)
