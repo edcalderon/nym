@@ -51,6 +51,9 @@ pub struct MixnetClient {
 
     // internal state used for the `Stream` implementation
     _buffered: Vec<ReconstructedMessage>,
+
+    // internal state used for the `AsyncRead` implementation
+    _read_buffer: Vec<u8>,
 }
 
 impl MixnetClient {
@@ -75,6 +78,7 @@ impl MixnetClient {
             task_handle,
             packet_type,
             _buffered: Vec::new(),
+            _read_buffer: Vec::new(),
         }
     }
 
@@ -190,6 +194,29 @@ impl MixnetClient {
         // note: it's important to take ownership of the struct as if the shutdown is `TaskHandle::External`,
         // it must be dropped to finalize the shutdown
     }
+
+    fn read_buffer_len(&self) -> usize {
+        self._read_buffer.len()
+    }
+
+    fn read_buffer_to_slice(
+        &mut self,
+        buf: &mut [u8],
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<usize, std::io::Error>> {
+        if self._read_buffer.len() < buf.len() {
+            let written = self._read_buffer.len();
+            buf[..written].copy_from_slice(&self._read_buffer);
+            self._read_buffer.clear();
+            Poll::Ready(Ok(written))
+        } else {
+            let written = buf.len();
+            buf.copy_from_slice(&self._read_buffer[..written]);
+            self._read_buffer = self._read_buffer[written..].to_vec();
+            cx.waker().wake_by_ref();
+            Poll::Ready(Ok(written))
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -200,20 +227,23 @@ pub struct MixnetClientSender {
 
 impl AsyncRead for MixnetClient {
     fn poll_read(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<std::result::Result<usize, std::io::Error>> {
-        match self.poll_next(cx) {
-            Poll::Ready(Some(ref msg)) => {
-                let msg_bytes: Vec<u8> = msg.into();
-                let len = msg_bytes.len();
-                buf[..len].copy_from_slice(&msg_bytes);
-                Poll::Ready(Ok(len))
-            }
-            Poll::Ready(None) => Poll::Ready(Ok(0)),
-            Poll::Pending => Poll::Pending,
+        if !self._read_buffer.is_empty() {
+            return self.read_buffer_to_slice(buf, cx);
         }
+
+        let msg = match self.as_mut().poll_next(cx) {
+            Poll::Ready(Some(msg)) => msg,
+            Poll::Ready(None) => return Poll::Ready(Ok(0)),
+            Poll::Pending => return Poll::Pending,
+        };
+
+        self._read_buffer = msg.message.into();
+
+        self.read_buffer_to_slice(buf, cx)
     }
 }
 
