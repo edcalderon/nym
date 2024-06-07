@@ -2,8 +2,8 @@ use crate::mixnet::client::MixnetClientBuilder;
 use crate::mixnet::traits::MixnetMessageSender;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use futures::{ready, Stream, StreamExt};
-use log::error;
+use futures::{ready, AsyncRead, Stream, StreamExt};
+use log::{debug, error};
 use nym_client_core::client::base_client::GatewayConnection;
 use nym_client_core::client::{
     base_client::{ClientInput, ClientOutput, ClientState},
@@ -196,6 +196,27 @@ impl MixnetClient {
 pub struct MixnetClientSender {
     client_input: ClientInput,
     packet_type: Option<PacketType>,
+}
+
+impl AsyncRead for MixnetClient {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<std::result::Result<usize, std::io::Error>> {
+        match self.poll_next(cx) {
+            Poll::Ready(Some(ref msg)) => {
+                let msg_bytes: Vec<u8> = msg.into();
+                let len = msg_bytes.len();
+                buf[..len].copy_from_slice(&msg_bytes);
+                Poll::Ready(Ok(len))
+            }
+            Poll::Ready(None) => Poll::Ready(Ok(0)),
+            // We've read all currently available messages, but there might be more coming, but we shouldn't block
+            // up to the caller to deal with it.
+            Poll::Pending => Poll::Ready(Ok(0)),
+        }
+    }
 }
 
 impl Stream for MixnetClient {

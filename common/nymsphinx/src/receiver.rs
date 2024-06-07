@@ -31,18 +31,6 @@ pub struct ReconstructedMessage {
     pub sender_tag: Option<AnonymousSenderTag>,
 }
 
-impl From<ReconstructedMessage> for Vec<u8> {
-    fn from(msg: ReconstructedMessage) -> Vec<u8> {
-        match bincode::serialize(&msg) {
-            Ok(serialized) => serialized,
-            Err(err) => {
-                warn!("failed to serialize reconstructed message - {:?}", err);
-                Vec::new()
-            }
-        }
-    }
-}
-
 impl From<&ReconstructedMessage> for Vec<u8> {
     fn from(msg: &ReconstructedMessage) -> Vec<u8> {
         match bincode::serialize(msg) {
