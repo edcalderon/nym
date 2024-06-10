@@ -2,8 +2,8 @@ use crate::mixnet::client::MixnetClientBuilder;
 use crate::mixnet::traits::MixnetMessageSender;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use futures::{ready, AsyncRead, AsyncWrite, Stream, StreamExt};
-use log::{debug, error};
+use futures::{ready, AsyncRead, Stream, StreamExt};
+use log::error;
 use nym_client_core::client::base_client::GatewayConnection;
 use nym_client_core::client::{
     base_client::{ClientInput, ClientOutput, ClientState},
@@ -59,6 +59,16 @@ pub struct MixnetClient {
 #[derive(Debug, Default)]
 struct ReadBuffer {
     buffer: Vec<u8>,
+}
+
+impl ReadBuffer {
+    fn clear(&mut self) {
+        self.buffer.clear();
+    }
+
+    fn pending(&self) -> bool {
+        !self.buffer.is_empty()
+    }
 }
 
 impl MixnetClient {
@@ -208,7 +218,7 @@ impl MixnetClient {
         if self._read.buffer.len() < buf.len() {
             let written = self._read.buffer.len();
             buf[..written].copy_from_slice(&self._read.buffer);
-            self._read.buffer.clear();
+            self._read.clear();
             Poll::Ready(Ok(written))
         } else {
             let written = buf.len();
@@ -232,7 +242,7 @@ impl AsyncRead for MixnetClient {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<std::result::Result<usize, std::io::Error>> {
-        if !self._read.buffer.is_empty() {
+        if self._read.pending() {
             return self.read_buffer_to_slice(buf, cx);
         }
 
@@ -242,7 +252,7 @@ impl AsyncRead for MixnetClient {
             Poll::Pending => return Poll::Pending,
         };
 
-        self._read.buffer = msg.message.into();
+        self._read.buffer = msg.message;
 
         self.read_buffer_to_slice(buf, cx)
     }
