@@ -42,6 +42,7 @@ tap = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 toml = "0.5.10"
+tokio = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
