@@ -2,7 +2,8 @@ use crate::mixnet::client::MixnetClientBuilder;
 use crate::mixnet::traits::MixnetMessageSender;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use bytes::BufMut;
+use bytecodec::io::WriteBuf;
+use bytes::{Buf as _, BytesMut};
 use futures::{ready, Sink, SinkExt, Stream, StreamExt};
 use log::error;
 use nym_client_core::client::base_client::GatewayConnection;
@@ -13,6 +14,7 @@ use nym_client_core::client::{
 };
 use nym_crypto::asymmetric::identity;
 use nym_sphinx::addressing::clients::Recipient;
+use nym_sphinx::receiver::ReconstructedMessageCodec;
 use nym_sphinx::{params::PacketType, receiver::ReconstructedMessage};
 use nym_task::{
     connections::{ConnectionCommandSender, LaneQueueLengths},
@@ -23,6 +25,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, ReadBuf};
+use tokio_util::codec::{Encoder, FramedWrite};
 
 /// Client connected to the Nym mixnet.
 pub struct MixnetClient {
@@ -60,7 +63,7 @@ pub struct MixnetClient {
 
 #[derive(Debug, Default)]
 struct ReadBuffer {
-    buffer: Vec<u8>,
+    buffer: BytesMut,
 }
 
 impl ReadBuffer {
@@ -244,7 +247,7 @@ impl MixnetClient {
         } else {
             let written = buf.capacity();
             buf.put_slice(&self._read.buffer[..written]);
-            self._read.buffer = self._read.buffer[written..].to_vec();
+            self._read.buffer.advance(written);
             cx.waker().wake_by_ref();
             Poll::Ready(Ok(()))
         }
@@ -263,6 +266,8 @@ impl AsyncRead for MixnetClient {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf,
     ) -> Poll<tokio::io::Result<()>> {
+        let mut codec = ReconstructedMessageCodec {};
+
         if self._read.pending() {
             return self.read_buffer_to_slice(buf, cx);
         }
@@ -273,7 +278,11 @@ impl AsyncRead for MixnetClient {
             Poll::Pending => return Poll::Pending,
         };
 
-        self._read.buffer = msg.message;
+        // let mut buffer = BytesMut::new();
+
+        codec.encode(msg, &mut self._read.buffer).unwrap();
+
+        // = buffer.to_vec();
 
         self.read_buffer_to_slice(buf, cx)
     }
