@@ -16,6 +16,7 @@ pub struct NotificationContent {
 
 #[derive(Debug)]
 pub struct Notifications {
+    #[allow(dead_code)]
     pub you_are_in_draw: NotificationContent,
     pub take_part: NotificationContent,
 }
